@@ -1,0 +1,52 @@
+'CR1000
+'Program name: SLAVEultralowtoArduinoAlarm5_9_2016.CR1
+'Written by Maritza Romero 5/4/2016
+'revision  5/9/16 for md485  All slave does is meas temp and send to Master
+'Type T TC connected blue(coppper)  in H channel and red L channel
+'Declare Variables and Units
+
+Public Batt_Volt,
+Public PTemp_C,TempSlave(4),Result
+
+Units Batt_Volt=Volts
+Units PTemp_C=Deg C
+Units TempSlave()=Deg C
+Alias TempSlave(1)=NewBlockUltLow
+Alias TempSlave(2)=NewHunterUltLow
+Alias TempSlave(3)=OldBlueUltLow
+Alias TempSlave(4)=OldGreyUltLow
+
+
+'Define Data Tables 
+'DataTable(Table1,True,-1)'output averages every 30min
+'	DataInterval(0,30,min,10)
+'	Average (1,Batt_Volt,FP2,False)
+'	Average (1,PTemp_C,FP2,False)
+'	Average (4,TempSlave(),FP2,False)
+	
+'EndTable
+
+'DataTable(Table2,True,-1)
+'	DataInterval(0,1440,Min,10)
+'	Minimum(1,Batt_Volt,FP2,False,False)
+'EndTable
+
+'Main Program
+BeginProg
+	Scan(1,min,1,0)
+	  
+'-------------------------measure temps----------------------------------------------------------	   
+	  'Default Datalogger Battery Voltage measurement Batt_Volt:
+		Battery(Batt_Volt)
+		'Wiring Panel Temperature measurement PTemp_C:
+		PanelTemp(PTemp_C,_60Hz)
+		'Type T (copper-constantan) Thermocouple measurements Temp_C:
+		TCDiff(TempSlave(),4,mV7_5C,1,TypeT,PTemp_C,True,0,_60Hz,1,0)' reads all 4 TC in sequencial channels
+    SendVariables (Result,ComSDC7,0,3,0000,0,"Public","Temp()",TempSlave(),4)
+    ' got ComSDC7 and 3 Pack Bus Add from network set up
+		'Call Data Tables and Store Data  
+		'outputs
+	'	CallTable(Table1) no output needed here
+	'	CallTable(Table2)
+	NextScan
+EndProg

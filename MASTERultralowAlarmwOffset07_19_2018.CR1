@@ -1,0 +1,260 @@
+'CR1000
+'Written by Maritza Romero 4/6/2016
+'revision 5_9_2016
+'rev 5/10/16 fixed nested loops
+'rev 5/10/16 4V on for 18 loops before it goes back to 1V too long
+'Type T TC connected blue(coppper)  in H channel and red L channel
+'Declare Variables and Units
+'I counter AO4_1 up to 4, J counter AO4_2 up to 2
+'rev5/26/16 alarm for -80shawn testing conected to -80
+'rev5/27/16 set temp conditions to constants and changed name of output table
+'changed 
+'FINAL 
+'rev 6/15/16
+'changed because empty freezers change temp faster than full so need to change alarm condition from before 
+' program wont set 4V alarm untill temp has been above alarm for at least 8 min...  and will keep alarm
+' only for 60min after that it turns it off again.  IF the temp recovers on its own it also turn
+'5v back to 1V 
+'rev02/23/2017
+'set program to set alarm high (5V) after 15 min over temp and reset alarm low after 60min
+'7/19/2018 set up the call out with 1 min offset between each'5/29/19 turned old zang off
+
+Public Batt_Volt,LoopCount,AlarmTimer(6),Mult60(6)
+Public PTemp_C,AO4_1(4),AO4_2(2),Temp(6)
+'based on 2/22/17 dounlad data
+
+'!!!!!!!!!!!!!!!!!!if you want to shut alarm off!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+'  set the value next to your ultralow here  to positive 50
+'              do not touch the rest of the program
+'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Const AlarmTempAnna= 80'-58 ' -60
+Const AlarmTempChip= -58 '-60
+Const AlarmTempOldCrappy= -58 '60
+Const AlarmTempZang= 50' -58 '-60 
+Const AlarmTempShawn= -58 '-60
+Const AlarmTempChembug= -58 ' -60 'charlie
+'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+Units Batt_Volt=Volts
+Units PTemp_C=Deg C
+
+
+Alias Temp(1)= NewBlockUltLow
+Alias Temp(2)= NewHunterUltLow
+Alias Temp(3)= OldBlueUltLow
+Alias Temp(4)= OldGreyUltLow
+Alias Temp(5)= OldShawnUltLow
+Alias Temp(6)= NewStuhlUltLow
+
+'Define Data Tables outputs avg every 30 mins
+DataTable(Ultralows,True,-1)
+	DataInterval(0,30,min,10)'4/4/18 cant change b/c slave set at 30
+	Average (1,Batt_Volt,FP2,False)
+	Average (1,PTemp_C,FP2,False)
+	Average (6,Temp(),FP2,False)
+	Average (4,AO4_1(),FP2,False)
+  Average (2,AO4_2(),FP2,False)
+	Average (6,AlarmTimer(),FP2,False)
+	'Sample (6,Mult60(),FP2)
+	
+EndTable
+
+'Main Program 1min scans
+BeginProg
+	Scan(1,min,1,0)
+'Measure the two TC in the Master logger
+Battery (Batt_Volt)
+PanelTemp (PTemp_C,_60Hz)
+TCDiff (Temp(5),2,mV7_5C,1,TypeT,PTemp_C,True ,0,_60Hz,1.0,0)'meas 5&6  wired straight in master
+'Note do not need code to read temps 1-4 because they are transparently passed from slave
+	  
+'----------initialize the output of AO4 to 1V only occurs once at beginning of program-----------
+	   If LoopCount =0 Then ' LoopCount only used once
+    
+	           AO4_1(1)= FIX (1000)'fix returns the first integer >= 0 sets ao4 to 1000mV
+	           AO4_1(2)= FIX (1000)'fix returns the first integer >= 0 sets ao4 to 1000mV
+	           AO4_1(3)= FIX (1000)'fix returns the first integer >= 0 sets ao4 to 1000mV
+	           AO4_1(4)= FIX (1000)'fix returns the first integer >= 0 sets ao4 to 1000mV 
+	           Mult60(1)=0
+	           Mult60(2)=0
+	           Mult60(3)=0
+	           Mult60(4)=0 
+	          AO4_2(1)= FIX (1000)'fix returns the first integer >= 0 sets ao4 to 1000mV
+	          AO4_2(2)= FIX (1000)'fix returns the first integer >= 0 sets ao4 to 1000mV
+	          Mult60(5)=0 
+	          Mult60(6)=0 
+	           AlarmTimer(1)=0
+	           AlarmTimer(2)=0
+	           AlarmTimer(3)=0
+	           AlarmTimer(4)=0
+	           AlarmTimer(5)=0
+	           AlarmTimer(6)=0
+	   	    
+	       SDMAO4 (AO4_1(),4,0)' sends all 4 AO4() parameters in one code
+	       SDMAO4 (AO4_2(),2,1)
+	       
+	       LoopCount = 1
+	      
+	   End If 
+  
+
+
+'------------test conditions to  set AO4_1slave logger high  4V alarm high fo----------------------
+'rather than the IF loop do individual loops as each freezer has different alarm Temp conditions
+
+    If Temp(1)> AlarmTempAnna  Then
+
+	          AlarmTimer(1)=AlarmTimer(1)+1' increments each 1min loop by 1 each 
+	      '    Mult60(1)=Mult60(1)+1 ' inc each 1 min loop 1 each
+               If AlarmTimer(1)> 1	Then    ' if more than 1 min at alarm condition   
+                   AO4_1(1)=4000'set alarm high 4V then 1V after alarm has been on for 60 min
+                   SDMAO4 (AO4_1(),4,0)
+	             EndIf
+	              If AlarmTimer(1)>7  Then
+                  AO4_1(1)=1000'mV=1V
+	                SDMAO4 (AO4_1(),4,0)
+               
+	             EndIf
+	  EndIf
+'Chips ultralow Temp(2)     
+	 If Temp(2)> AlarmTempChip  Then
+	    
+	        ' AO4_1(2)=4000'mV=4V	
+	        ' SDMAO4 (AO4_1(),4,0)
+	         AlarmTimer(2)=AlarmTimer(2)+1
+	        ' Mult60(2)= 60 'for 60 sec or 1 min
+	             If AlarmTimer(2)>2 Then
+                  AO4_1(2)=4000'mV=1V
+	                SDMAO4 (AO4_1(),4,0)
+	             EndIf
+	             If AlarmTimer(2)>8 Then
+                  AO4_1(2)=1000'mV=1V
+	                SDMAO4 (AO4_1(),4,0)
+	             EndIf
+ EndIf
+'oldBlue Crappy ultralow Temp(3)
+ If Temp(3)> AlarmTempOldCrappy  Then
+	  
+	       '  AO4_1(3)=4000'mV=4V	
+	       '  SDMAO4 (AO4_1(),4,0)
+	         AlarmTimer(3)=AlarmTimer(3)+1
+	        ' Mult60(3)= 60 'for 60 sec or 1 min
+             If AlarmTimer(3)>3 Then
+                 AO4_1(3)=4000'mV=1V
+	               SDMAO4 (AO4_1(),4,0)
+	           EndIf  
+	            If AlarmTimer(3)>9 Then
+                  AO4_1(3)=1000'mV=1V
+	                SDMAO4 (AO4_1(),4,0)
+	            EndIf
+	             
+	 EndIf
+'Zangs old grey ultralow Temp(4)
+     If Temp(4)> AlarmTempZang Then
+
+	        ' AO4_1(4)=4000'mV=4V	
+	        ' SDMAO4 (AO4_1(),4,0)
+	         AlarmTimer(4)=AlarmTimer(4)+1
+	        ' Mult60(4)= 60 'for 60 sec or 1 min
+              If AlarmTimer(4)>4 Then
+                 AO4_1(4)=4000'mV=1V
+	               SDMAO4 (AO4_1(),4,0)
+	            EndIf  
+	            If AlarmTimer(4)>10 Then
+                  AO4_1(4)=1000'mV=1V
+	                SDMAO4 (AO4_1(),4,0)
+	            EndIf
+ EndIf
+ '------------test conditions to  set AO4_2 high master logger  4V alarm high fo-----------------------
+'shawn ultratlow
+
+	    If Temp(5)>AlarmTempShawn  Then
+	     
+	       ' AO4_2(1)=4000'mV=4V	
+	      '  SDMAO4 (AO4_2(),2,1)
+	        AlarmTimer(5)=AlarmTimer(5)+1
+	      '  Mult60(5)= 60 'for 60 sec or 1 min
+	           If AlarmTimer(5)>5 Then
+               AO4_2(1)=4000'mV=1V
+	             SDMAO4 (AO4_2(),2,1)
+             EndIf
+	           If AlarmTimer(5)>11 Then
+                  AO4_2(1)=1000'mV=1V
+	                SDMAO4 (AO4_1(),4,0)
+	            EndIf  
+	  End If
+
+ 'chembug ultralow
+	    If Temp(6)>AlarmTempChembug  Then
+	   
+	       ' AO4_2(2)=4000'mV=4V	
+	      '  SDMAO4 (AO4_2(),2,1)
+	        AlarmTimer(6)=AlarmTimer(6)+1
+	       ' Mult60(6)= 60 'for 60 sec or 1 min
+            If AlarmTimer(6)> 6 Then
+               AO4_2(2)=4000'mV=1V
+	             SDMAO4 (AO4_2(),2,1)
+            End If
+             If AlarmTimer(6)>12 Then
+                  AO4_2(2)=1000'mV=1V
+	                SDMAO4 (AO4_1(),4,0)
+	            EndIf 
+	  
+	  End If
+ 
+ 
+'--------reset alarm 4V if temp returns to normal and reset Alarm timer this part works-------------
+'will need to separate into indiv statements each has different alarm
+
+       If Temp(1)< AlarmTempAnna Then
+         AO4_1(1)=1000 'mV
+         SDMAO4 (AO4_1(),4,0)
+         AlarmTimer(1)=0
+         Mult60(1)=0
+       End If
+
+
+       If Temp(2)< AlarmTempChip Then
+         AO4_1(2)=1000 'mV
+         SDMAO4 (AO4_1(),4,0)
+         AlarmTimer(2)=0
+         Mult60(2)=0
+       End If
+
+
+       If Temp(3)<AlarmTempOldCrappy Then
+         AO4_1(3)=1000
+         SDMAO4 (AO4_1(),4,0)
+         AlarmTimer(3)=0
+         Mult60(3)=0
+       End If
+
+
+       If Temp(4)< AlarmTempZang Then
+         AO4_1(4)=1000 'mV
+         SDMAO4 (AO4_1(),4,0)
+         AlarmTimer(4)=0
+         Mult60(4)=0
+       End If
+
+ 
+
+       If Temp(5)< AlarmTempShawn Then
+          AO4_2(1)=1000 'mV
+          SDMAO4 (AO4_2(),2,1) 
+           AlarmTimer(5)=0
+           Mult60(5)=0
+       End If
+
+       If Temp(6)< AlarmTempChembug Then
+          AO4_2(2)=1000 'mV
+          SDMAO4 (AO4_2(),2,1) 
+           AlarmTimer(6)=0
+           Mult60(6)=0
+       End If
+     
+ 		'outputs
+		CallTable(Ultralows)
+
+	NextScan
+EndProg
